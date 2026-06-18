@@ -25,46 +25,51 @@ jobs:
           sudo apt-get install -y build-essential ccache git zlib1g-dev libffi-dev libssl-dev libncurses5-dev libgdbm-dev libnss3-dev libsqlite3-dev libreadline-dev tk-dev libgmp-dev libmpfr-dev libmpc-dev libasound2-dev patchelf unzip
           sudo apt-get install -y lib32stdc++6 lib32z1
 
-      - name: 5. 预装 Android SDK 核心组件并进行全局环境变量穿透
+      - name: 5. 安装 2026 标准 Buildozer 环境
         run: |
-          # 1. 下载并安装最新版 cmdline-tools
-          mkdir -p /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools
-          cd /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools
+          python -m pip install --upgrade pip
+          pip install --upgrade virtualenv buildozer sh Cython
+
+      - name: 6. 诱骗 Buildozer 自动初始化其固执的专属路径 (移花接木核心步)
+        run: |
+          # 让 Buildozer 先后台运行 15 秒，逼迫它在系统里自动生成它认可的、绝对正确的全套空目录
+          buildozer android debug > /dev/null 2>&1 &
+          sleep 15
+          # 强行掐断它，此时它真正认账的 ~/.buildozer/ 隐藏专属母目录已经完全诞生了
+          pkill -f buildozer || true
+          pkill -f python || true
+
+      - name: 7. 往 Buildozer 自己建好的专属目录里精准注入最新的 sdkmanager 与 aidl 
+        run: |
+          # 1. 定位到 Buildozer 自己刚刚创建的、最纯正的安卓 SDK 核心腹地
+          TARGET_SDK_DIR="/home/runner/.buildozer/android/platform/android-sdk"
+          mkdir -p $TARGET_SDK_DIR/cmdline-tools
+          
+          # 2. 下载并解压最新最稳的官方命令行工具
+          cd $TARGET_SDK_DIR/cmdline-tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
           mv cmdline-tools latest
           
-          # 2. 全自动同意所有证书协议
-          mkdir -p /home/runner/.buildozer/android/platform/android-sdk/licenses
-          echo -e "\n244d2d25b6ad2030201111976193d7b38577c9a7" > /home/runner/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > /home/runner/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          # 3. 全自动注入并同意 Google 官方所有证书协议锁
+          mkdir -p $TARGET_SDK_DIR/licenses
+          echo -e "\n244d2d25b6ad2030201111976193d7b38577c9a7" > $TARGET_SDK_DIR/licenses/android-sdk-license
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $TARGET_SDK_DIR/licenses/android-sdk-preview-license
           
-          # 3. 强行呼叫官方 sdkmanager 下载包含了 aidl 的最稳组件 build-tools 和 platform-tools
-          export SDKMANAGER="/home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager"
-          $SDKMANAGER --sdk_root=/home/runner/.buildozer/android/platform/android-sdk "build-tools;33.0.0" "platforms;android-33" "platform-tools"
+          # 4. 用最新版的 sdkmanager 往 Buildozer 自己的这个目录下全量装载 build-tools (内含 aidl) 和 platform
+          $TARGET_SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$TARGET_SDK_DIR "build-tools;33.0.0" "platforms;android-33" "platform-tools"
           
-          # 4. 【核心路径欺骗】建立老旧古老的 tools/bin 路径供老版本 Buildozer 识别
-          mkdir -p /home/runner/.buildozer/android/platform/android-sdk/tools/bin
-          ln -s /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+          # 5. 【终极防线】同时建立 Buildozer 喜欢翻找的老旧 tools/bin 软链接快捷方式
+          mkdir -p $TARGET_SDK_DIR/tools/bin
+          ln -s $TARGET_SDK_DIR/cmdline-tools/latest/bin/sdkmanager $TARGET_SDK_DIR/tools/bin/sdkmanager
 
-          # 5. 【终极绝杀】将所有包含 aidl 的路径强行穿透写入 GitHub 系统的全局环境变量中！
-          echo "/home/runner/.buildozer/android/platform/android-sdk/build-tools/33.0.0" >> $GITHUB_PATH
-          echo "/home/runner/.buildozer/android/platform/android-sdk/platform-tools" >> $GITHUB_PATH
-          echo "/home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-      - name: 6. 安装 2026 标准 Buildozer 环境
+      - name: 8. 重新呼叫官方 Buildozer 引擎执行真正的极速闭包编译
         run: |
-          python -m pip install --upgrade pip
-          # 顺便在全局环境中补充安装一下 cython，确保双重保险
-          pip install --upgrade virtualenv buildozer sh Cython
-
-      - name: 7. 启动官方 Buildozer 引擎一键极速编译
-        run: |
-          # 此时环境变量已完全穿透，系统在任何角落都能用 'aidl' 命令
           chmod -R 777 .
+          # 此时所有的 build-tools、aidl 已经完美的、一字不差的躺在它自己开辟的家园里，它挑不出任何毛病
           buildozer -v android debug
 
-      - name: 8. 完美上传打包好的 APK 产物
+      - name: 9. 完美上传打包好的 APK 产物
         if: always()
         uses: actions/upload-artifact@v4
         with:

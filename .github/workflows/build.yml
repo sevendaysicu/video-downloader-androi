@@ -3,16 +3,18 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # 强行锁定更稳定的环境
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4  # 升级至 v4 解决过时警告
+
       - name: Get Buildozer Action
-        uses: ArtemSBulgakov/buildozer-action@v1
+        uses: ArtemSBulgakov/buildozer-action@v3  # 使用支持新标准的动作组件
         with:
           buildozer_version: stable
           command: buildozer android debug
+
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # 彻底解决 v3 禁用的报错
         with:
-          name: package
+          name: VideoDownloader-APK
           path: bin/*.apk

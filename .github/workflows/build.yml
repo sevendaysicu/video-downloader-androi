@@ -25,17 +25,21 @@ jobs:
           sudo apt-get install -y build-essential ccache git zlib1g-dev libffi-dev libssl-dev libncurses5-dev libgdbm-dev libnss3-dev libsqlite3-dev libreadline-dev tk-dev libgmp-dev libmpfr-dev libmpc-dev libasound2-dev patchelf unzip
           sudo apt-get install -y lib32stdc++6 lib32z1
 
-      - name: 5. 预先在底层注入最新版官方 Android SDK 工具链 (彻底防止下载闪退与解压超时)
+      - name: 5. 预先注入官方 Android SDK 环境并做路径向下兼容 (软连接硬解 path 漏洞)
         run: |
+          # 建立最新标准的工具目录
           mkdir -p /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools
           cd /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools
-          # 下载 2026 年最新最稳定的官方 Commandlinetools 稳定包
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
-          # 规范目录层级符合官方最新标准
           mv cmdline-tools latest
+          
+          # 【核心修复】建立老旧古老的 tools/bin 路径，并用软链接将其映射到最新 sdkmanager 上，完美欺骗 Buildozer 的检测
+          mkdir -p /home/runner/.buildozer/android/platform/android-sdk/tools/bin
+          ln -s /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+          
+          # 自动注入接受官方协议的证书锁
           mkdir -p /home/runner/.buildozer/android/platform/android-sdk/licenses
-          # 自动注入接受官方协议的证书锁，直接绕过慢速交互
           echo -e "\n244d2d25b6ad2030201111976193d7b38577c9a7" > /home/runner/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
 
       - name: 6. 升级并安装 2026 标准 Buildozer 环境
@@ -46,8 +50,8 @@ jobs:
       - name: 7. 启动官方 Buildozer 引擎一键极速编译
         run: |
           chmod -R 777 .
-          # 使用 -v 输出详细过程，yes | 全自动跳过底层繁琐的下载等待
-          yes | buildozer -v android debug
+          # 用标准参数，跳过不稳定的自动更新
+          buildozer -v android debug
 
       - name: 8. 完美上传打包好的 APK 产物
         if: always()

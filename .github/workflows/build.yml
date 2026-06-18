@@ -30,48 +30,46 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade virtualenv buildozer sh Cython
 
-      - name: 6. 诱骗 Buildozer 自动初始化其固执的专属路径 (移花接木核心步)
+      - name: 6. 诱骗 Buildozer 自动初始化双重空路径
         run: |
-          # 让 Buildozer 先后台运行 15 秒，逼迫它在系统里自动生成它认可的、绝对正确的全套空目录
+          # 让 Buildozer 后台运行 15 秒，逼迫它在所有可能的地方把两个隐藏目录都建好
           buildozer android debug > /dev/null 2>&1 &
           sleep 15
-          # 强行掐断它，此时它真正认账的 ~/.buildozer/ 隐藏专属母目录已经完全诞生了
           pkill -f buildozer || true
           pkill -f python || true
 
-      - name: 7. 往 Buildozer 自己建好的专属目录里精准注入最新的 sdkmanager 与 aidl 
+      - name: 7. 对「全局用户目录」和「项目工作目录」进行全量环境克隆与精准注入
         run: |
-          # 1. 定位到 Buildozer 自己刚刚创建的、最纯正的安卓 SDK 核心腹地
-          TARGET_SDK_DIR="/home/runner/.buildozer/android/platform/android-sdk"
-          mkdir -p $TARGET_SDK_DIR/cmdline-tools
+          # 定义可能存在的两个核心安卓 SDK 腹地
+          PATH_A="/home/runner/.buildozer/android/platform/android-sdk"
+          PATH_B="${{ github.workspace }}/.buildozer/android/platform/android-sdk"
           
-          # 2. 下载并解压最新最稳的官方命令行工具
-          cd $TARGET_SDK_DIR/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip
-          mv cmdline-tools latest
-          
-          # 3. 全自动注入并同意 Google 官方所有证书协议锁
-          mkdir -p $TARGET_SDK_DIR/licenses
-          echo -e "\n244d2d25b6ad2030201111976193d7b38577c9a7" > $TARGET_SDK_DIR/licenses/android-sdk-license
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $TARGET_SDK_DIR/licenses/android-sdk-preview-license
-          
-          # 4. 用最新版的 sdkmanager 往 Buildozer 自己的这个目录下全量装载 build-tools (内含 aidl) 和 platform
-          $TARGET_SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$TARGET_SDK_DIR "build-tools;33.0.0" "platforms;android-33" "platform-tools"
-          
-          # 5. 【终极防线】同时建立 Buildozer 喜欢翻找的老旧 tools/bin 软链接快捷方式
-          mkdir -p $TARGET_SDK_DIR/tools/bin
-          ln -s $TARGET_SDK_DIR/cmdline-tools/latest/bin/sdkmanager $TARGET_SDK_DIR/tools/bin/sdkmanager
+          # 循环对这两个路径同时进行毁灭性的全量装载，确保万无一失
+          for TARGET_SDK_DIR in "$PATH_A" "$PATH_B"; do
+              echo "[*] 正在向路径注入完整的核心组件: $TARGET_SDK_DIR"
+              mkdir -p $TARGET_SDK_DIR/cmdline-tools
+              
+              # 下载并解压最新最稳的官方命令行工具
+              cd $TARGET_SDK_DIR/cmdline-tools
+              wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+              unzip -q commandlinetools-linux-9477386_latest.zip
+              mv cmdline-tools latest
+              
+              # 自动注入并同意 Google 官方所有证书协议锁
+              mkdir -p $TARGET_SDK_DIR/licenses
+              echo -e "\n244d2d25b6ad2030201111976193d7b38577c9a7" > $TARGET_SDK_DIR/licenses/android-sdk-license
+              echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $TARGET_SDK_DIR/licenses/android-sdk-preview-license
+              
+              # 装载 build-tools (内含 aidl) 和 platform 组件
+              $TARGET_SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$TARGET_SDK_DIR "build-tools;33.0.0" "platforms;android-33" "platform-tools"
+              
+              # 建立老旧的 tools/bin 快捷方式兼容
+              mkdir -p $TARGET_SDK_DIR/tools/bin
+              ln -s $TARGET_SDK_DIR/cmdline-tools/latest/bin/sdkmanager $TARGET_SDK_DIR/tools/bin/sdkmanager
+          done
 
-      - name: 8. 重新呼叫官方 Buildozer 引擎执行真正的极速闭包编译
+      - name: 8. 将 aidl 的绝对路径强行焊死在系统最高全局变量中
         run: |
-          chmod -R 777 .
-          # 此时所有的 build-tools、aidl 已经完美的、一字不差的躺在它自己开辟的家园里，它挑不出任何毛病
-          buildozer -v android debug
-
-      - name: 9. 完美上传打包好的 APK 产物
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: VideoDownloader-APK
-          path: bin/*.apk
+          # 无论是哪里的 aidl，直接把它们的物理路径强行塞给 Linux 系统的最高指挥部
+          echo "/home/runner/.buildozer/android/platform/android-sdk/build-tools/33.0.0" >> $GITHUB_PATH
+          echo "${{ github.workspace }}/.buildozer/android/platform/android-sdk/build-tools

@@ -8,11 +8,11 @@ jobs:
       - name: 1. 拉取仓库代码
         uses: actions/checkout@v4
 
-      - name: 2. 安装并配置 Java 8 环境
+      - name: 2. 升级至 Java 17 环境 (彻底解决最后阶段 gradlew 封包闪退)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '8' 
+          java-version: '17' 
 
       - name: 3. 配置 Python 环境
         uses: actions/setup-python@v5
@@ -25,13 +25,30 @@ jobs:
           sudo apt-get install -y build-essential ccache git zlib1g-dev libffi-dev libssl-dev libncurses5-dev libgdbm-dev libnss3-dev libsqlite3-dev libreadline-dev tk-dev libgmp-dev libmpfr-dev libmpc-dev libasound2-dev patchelf unzip
           sudo apt-get install -y lib32stdc++6 lib32z1
 
-      - name: 5. 注入官方历史 tools 目录并全自动签署最新协议
+      - name: 5. 部署现代 SDK 工具链与智能替身 (解决新老 Java 咬合漏洞)
         run: |
-          mkdir -p /home/runner/.buildozer/android/platform/android-sdk
-          cd /home/runner/.buildozer/android/platform/android-sdk
-          wget -q https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
-          unzip -q sdk-tools-linux-4333796.zip
-          yes | tools/bin/sdkmanager --licenses || true
+          SDK_DIR="/home/runner/.buildozer/android/platform/android-sdk"
+          mkdir -p $SDK_DIR/cmdline-tools
+          cd $SDK_DIR/cmdline-tools
+          
+          # 下载完全兼容 Java 17 的现代版命令行工具
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mv cmdline-tools latest
+          
+          # 建立脚本替身，完美欺骗 Buildozer 的死板路径检测，将指令转交给新版工具
+          mkdir -p $SDK_DIR/tools/bin
+          cat << 'EOF' > $SDK_DIR/tools/bin/sdkmanager
+          #!/bin/bash
+          /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager "$@"
+          EOF
+          chmod +x $SDK_DIR/tools/bin/sdkmanager
+          
+          # 签协议
+          mkdir -p $SDK_DIR/licenses
+          echo -e "\n244d2d25b6ad2030201111976193d7b38577c9a7" > $SDK_DIR/licenses/android-sdk-license
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $SDK_DIR/licenses/android-sdk-preview-license
+          yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: 6. 安装 Buildozer 核心打包工具
         run: |
@@ -52,7 +69,6 @@ jobs:
       - name: 8. 启动全速打包并配置智能报错捕获机制
         run: |
           chmod -R 777 .
-          # 将日志重定向到文件，既能极速打包防截断，又能保留证据
           buildozer android debug > buildozer_output.log 2>&1 || {
             echo "------------------- ❌ 编译不幸崩溃！为您拦截并抓取核心底层报错 -------------------"
             tail -n 150 buildozer_output.log

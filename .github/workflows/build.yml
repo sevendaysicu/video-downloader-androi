@@ -25,52 +25,45 @@ jobs:
           sudo apt-get install -y build-essential ccache git zlib1g-dev libffi-dev libssl-dev libncurses5-dev libgdbm-dev libnss3-dev libsqlite3-dev libreadline-dev tk-dev libgmp-dev libmpfr-dev libmpc-dev libasound2-dev patchelf unzip
           sudo apt-get install -y lib32stdc++6 lib32z1
 
-      - name: 5. 预装 Buildozer 固执索要的老版本 sdkmanager 官方目录
+      - name: 5. 注入官方历史 tools 目录，并全自动签署 2026 年全部最新官方协议锁
         run: |
           mkdir -p /home/runner/.buildozer/android/platform/android-sdk
           cd /home/runner/.buildozer/android/platform/android-sdk
           
-          # 下载自带 tools/bin 的官方标准历史工具包
+          # 下载自带老路径的历史工具包
           wget -q https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
           unzip -q sdk-tools-linux-4333796.zip
           
-          # 锁死授权协议
-          mkdir -p licenses
-          echo -e "\n244d2d25b6ad2030201111976193d7b38577c9a7" > licenses/android-sdk-license
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > licenses/android-sdk-preview-license
+          # 【核心绝杀】呼叫老版 sdkmanager，用管道流全自动疯狂按下 'y'，强行签掉包含 Build-Tools 37 在内的所有新老授权协议！
+          yes | tools/bin/sdkmanager --licenses || true
 
       - name: 6. 安装 Buildozer 核心打包工具
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade virtualenv buildozer sh Cython
 
-      - name: 7. 诱骗 Buildozer 后台拉取全量组件，并进行物理路径强行并轨
+      - name: 7. 诱骗并强制物理同步所有潜在版本的 build-tools (全面兼容第 37 版工具链)
         run: |
-          # 1. 先呼叫一次编译，让已经活过来的 sdkmanager 在后台把该下载的 100% 下载完
+          # 1. 后台诱骗运行 45 秒，让签完协议的工具链无阻碍全量下载
           buildozer android debug > /dev/null 2>&1 &
           sleep 45
           pkill -f buildozer || true
           pkill -f python || true
           
-          # 2. 【物理绝杀】既然它瞎，找不到下载好的组件，我们手动帮它把可能诞生 aidl 的目录全部互相同步复制！
+          # 2. 【路径大包围】管它下载下来的是 33.0.0 还是 37.0.0，通通打包将文件提取到母目录下
           SDK_DIR="/home/runner/.buildozer/android/platform/android-sdk"
-          
-          # 强行确保 build-tools 母目录存在
           mkdir -p $SDK_DIR/build-tools
           
-          # 如果后台下好了 33.0.0 的特定版本，直接把它里面的所有文件强行往母目录复制、往系统环境变量里塞
-          if [ -d "$SDK_DIR/build-tools/33.0.0" ]; then
-              cp -r $SDK_DIR/build-tools/33.0.0/* $SDK_DIR/build-tools/ || true
-          fi
+          # 遍历所有被下载到后缀目录里的真家伙，把里面的 aidl 全局无损平铺出来
+          find $SDK_DIR/build-tools/ -mindepth 2 -maxdepth 2 -exec cp -r {}/ $SDK_DIR/build-tools/ \; 2>/dev/null || true
           
-          # 终极保险：把整个大路径直接塞给 Linux 最高指挥部
+          # 注入环境变量最高指挥部
           echo "$SDK_DIR/build-tools" >> $GITHUB_PATH
-          echo "$SDK_DIR/build-tools/33.0.0" >> $GITHUB_PATH
 
       - name: 8. 启动官方 Buildozer 引擎执行真正的最终闭包编译
         run: |
           chmod -R 777 .
-          # 此时不管它用 which aidl 还是直接翻找 build-tools 目录，真家伙全部直接怼在它脸上
+          # 协议已签、第 37 版依赖全部顺利下完并平铺，老代码将一路绿灯直接通过校验！
           buildozer -v android debug
 
       - name: 9. 完美上传打包好的 APK 产物

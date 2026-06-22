@@ -8,7 +8,7 @@ source.include_exts = py,png,jpg,json,ttf
 version = 1.0
 
 # 核心依赖（已精简，确保合包不卡死）
-requirements = python3,kivy,requests,urllib3,certifi,charset_normalizer,idna
+requirements = python3,kivy,requests,urllib3,certifi,charset_normalizer,idna,yt-dlp
 
 # 屏幕设置
 orientation = portrait

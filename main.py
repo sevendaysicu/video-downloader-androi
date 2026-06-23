@@ -74,7 +74,7 @@ class VideoDownloaderAndroid(App):
             multiline=True, 
             hint_text="任意支持的视频网页链接，或者包含 CLS-xxx.jpg 的切片请求地址...", 
             size_hint_y=None, 
-            height=120
+            height=200
         )
         layout.add_widget(self.url_input)
         

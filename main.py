@@ -49,7 +49,7 @@ class VideoDownloaderAndroid(App):
             multiline=True, 
             hint_text="示例: https://v.rn212.xyz/hls/abc-720/CLS-001.jpg?v=6&auth=...", 
             size_hint_y=None, 
-            height=200  
+            height=400  
         )
         layout.add_widget(self.url_input)
         
